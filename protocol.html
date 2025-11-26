@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>&#x671f;&#x8d27;&#x4e91;&#x7aef;&#x9884;&#x8b66;&#x7cfb;&#x7edf; - &#x901a;&#x4fe1;&#x534f;&#x8bae;&#x89c4;&#x8303; &lpar;V1&period;0&rpar;</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="期货云端预警系统---通信协议规范-v10">期货云端预警系统 - 通信协议规范 (V1.0)</h1>
+<h2 id="1-基础通信层">1. 基础通信层</h2>
+<ul>
+<li><strong>协议</strong>: TCP</li>
+<li><strong>数据包格式</strong>: Length-Prefix (长度前缀)<pre><code>[ Header (4 Bytes) ] + [ Body (N Bytes) ]
+</code></pre>
+<ul>
+<li><strong>Header</strong>: ASCII 字符串表示的十进制整数 (例如 <code>&quot; 120&quot;</code>), 表示 Body 的长度。</li>
+<li><strong>Body</strong>: UTF-8 编码的 JSON 字符串。</li>
+</ul>
+</li>
+</ul>
+<h2 id="2-业务数据定义-json">2. 业务数据定义 (JSON)</h2>
+<p>所有消息必须包含 <code>type</code> 字段。</p>
+<h3 id="a-用户账户-user-account">A. 用户账户 (User Account)</h3>
+<h4 id="1-注册-register">1. 注册 (Register)</h4>
+<ul>
+<li><strong>方向</strong>: Client -&gt; Server</li>
+</ul>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;register&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;username&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;client001&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;password&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;hashed_password_here&quot;</span> 
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="2-登录-login">2. 登录 (Login)</h4>
+<ul>
+<li><strong>方向</strong>: Client -&gt; Server</li>
+</ul>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;login&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;username&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;client001&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;password&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;hashed_password_here&quot;</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="3-设置修改接收邮箱-set-email">3. 设置/修改接收邮箱 (Set Email)</h4>
+<ul>
+<li><strong>方向</strong>: Client -&gt; Server</li>
+</ul>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;set_email&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;email&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;alert@example.com&quot;</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h3 id="b-预警单管理-warning-orders">B. 预警单管理 (Warning Orders)</h3>
+<h4 id="4-添加预警单-add-warning">4. 添加预警单 (Add Warning)</h4>
+<p><strong>场景一：价格预警</strong></p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;add_warning&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;warning_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;price&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;account&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;88001234&quot;</span><span class="hljs-punctuation">,</span>       <span class="hljs-comment">// 客户期货账号</span>
+    <span class="hljs-attr">&quot;symbol&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;rb2310&quot;</span><span class="hljs-punctuation">,</span>          <span class="hljs-comment">// 合约代码</span>
+    <span class="hljs-attr">&quot;trigger_price&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">3500.0</span><span class="hljs-punctuation">,</span>     <span class="hljs-comment">// 触发价格</span>
+    <span class="hljs-attr">&quot;condition&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;gte&quot;</span>           <span class="hljs-comment">// &quot;gte&quot; (&gt;=), &quot;lte&quot; (&lt;=)</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<p><strong>场景二：时间预警</strong></p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;add_warning&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;warning_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;time&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;account&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;88001234&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;symbol&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;rb2310&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;trigger_time&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2023-11-25 14:55:00&quot;</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="5-删除预警单-delete-warning">5. 删除预警单 (Delete Warning)</h4>
+<ul>
+<li><strong>方向</strong>: Client -&gt; Server</li>
+</ul>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;delete_warning&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;order_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1001&quot;</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="6-修改预警单-modify-warning">6. 修改预警单 (Modify Warning)</h4>
+<ul>
+<li><strong>方向</strong>: Client -&gt; Server</li>
+</ul>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;modify_warning&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;order_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1001&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;trigger_price&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">3600.0</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;condition&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;lte&quot;</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h3 id="c-查询与推送-query--push">C. 查询与推送 (Query &amp; Push)</h3>
+<h4 id="7-查询预警单-query-warnings">7. 查询预警单 (Query Warnings)</h4>
+<ul>
+<li><strong>方向</strong>: Client -&gt; Server</li>
+</ul>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;query_warnings&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;status_filter&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;active&quot;</span> <span class="hljs-comment">// &quot;active&quot;, &quot;triggered&quot;, &quot;deleted&quot;, &quot;all&quot;</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="8-服务器响应-server-response">8. 服务器响应 (Server Response)</h4>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;response&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;request_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;add_warning&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;success&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-keyword">true</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;message&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;添加成功&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;data&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span>
+        <span class="hljs-attr">&quot;order_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1002&quot;</span>
+    <span class="hljs-punctuation">}</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="9-预警触发通知-alert-triggered">9. 预警触发通知 (Alert Triggered)</h4>
+<ul>
+<li><strong>方向</strong>: Server -&gt; Client</li>
+</ul>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;alert_triggered&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;order_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1001&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;symbol&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;rb2310&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;trigger_value&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">3501.0</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;trigger_time&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2023-11-25 15:00:01&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-comment">// 触发时间</span>
+    <span class="hljs-attr">&quot;message&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;您的螺纹钢合约已达到触发价格 3500.0！&quot;</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+
+            
+            
+        </body>
+        </html>
