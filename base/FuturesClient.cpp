@@ -1,0 +1,248 @@
+#include "FuturesClient.h"
+#include <cstring>
+
+// --- ChatMessage Implementation ---
+
+ChatMessage::ChatMessage() : body_length_(0) {
+}
+
+const char* ChatMessage::data() const { return data_; }
+char* ChatMessage::data() { return data_; }
+
+std::size_t ChatMessage::length() const { return header_length + body_length_; }
+
+const char* ChatMessage::body() const { return data_ + header_length; }
+char* ChatMessage::body() { return data_ + header_length; }
+
+std::size_t ChatMessage::body_length() const { return body_length_; }
+
+void ChatMessage::body_length(std::size_t new_length) {
+    body_length_ = new_length;
+    if (body_length_ > max_body_length)
+        body_length_ = max_body_length;
+}
+
+bool ChatMessage::decode_header() {
+    char header[header_length + 1] = "";
+    std::strncat(header, data_, header_length);
+    body_length_ = std::atoi(header);
+    if (body_length_ > max_body_length) {
+        body_length_ = 0;
+        return false;
+    }
+    return true;
+}
+
+void ChatMessage::encode_header() {
+    char header[header_length + 1] = "";
+    std::sprintf(header, "%4d", static_cast<int>(body_length_));
+    std::memcpy(data_, header, header_length);
+}
+
+// --- FuturesClient Implementation ---
+
+FuturesClient::FuturesClient(boost::asio::io_context& io_context,
+           const tcp::resolver::results_type& endpoints)
+    : io_context_(io_context),
+      socket_(io_context),
+      request_id_counter_(0) {
+    do_connect(endpoints);
+}
+
+void FuturesClient::set_message_callback(MessageCallback callback) {
+    message_callback_ = callback;
+}
+
+void FuturesClient::register_user(const std::string& username, const std::string& password) {
+    json j;
+    j["type"] = "register";
+    j["request_id"] = generate_request_id();
+    j["username"] = username;
+    j["password"] = password;
+    send_json(j);
+}
+
+void FuturesClient::login(const std::string& username, const std::string& password) {
+    json j;
+    j["type"] = "login";
+    j["request_id"] = generate_request_id();
+    j["username"] = username;
+    j["password"] = password; 
+    send_json(j);
+}
+
+void FuturesClient::set_email(const std::string& email) {
+    json j;
+    j["type"] = "set_email";
+    j["request_id"] = generate_request_id();
+    j["email"] = email;
+    send_json(j);
+}
+
+void FuturesClient::add_price_warning(const std::string& account, const std::string& symbol, double max_price, double min_price) {
+    json j;
+    j["type"] = "add_warning";
+    j["request_id"] = generate_request_id();
+    j["warning_type"] = "price";
+    j["account"] = account;
+    j["symbol"] = symbol;
+    j["max_price"] = max_price;
+    j["min_price"] = min_price;
+    send_json(j);
+}
+
+void FuturesClient::add_time_warning(const std::string& account, const std::string& symbol, const std::string& trigger_time) {
+    json j;
+    j["type"] = "add_warning";
+    j["request_id"] = generate_request_id();
+    j["warning_type"] = "time";
+    j["account"] = account;
+    j["symbol"] = symbol;
+    j["trigger_time"] = trigger_time;
+    send_json(j);
+}
+
+void FuturesClient::delete_warning(const std::string& order_id) {
+    json j;
+    j["type"] = "delete_warning";
+    j["request_id"] = generate_request_id();
+    j["order_id"] = order_id;
+    send_json(j);
+}
+
+void FuturesClient::modify_price_warning(const std::string& order_id, double max_price, double min_price) {
+    json j;
+    j["type"] = "modify_warning";
+    j["request_id"] = generate_request_id();
+    j["order_id"] = order_id;
+    j["warning_type"] = "price";
+    j["max_price"] = max_price;
+    j["min_price"] = min_price;
+    send_json(j);
+}
+
+void FuturesClient::modify_time_warning(const std::string& order_id, const std::string& trigger_time) {
+    json j;
+    j["type"] = "modify_warning";
+    j["request_id"] = generate_request_id();
+    j["order_id"] = order_id;
+    j["warning_type"] = "time";
+    j["trigger_time"] = trigger_time;
+    send_json(j);
+}
+
+void FuturesClient::query_warnings(const std::string& status_filter) {
+    json j;
+    j["type"] = "query_warnings";
+    j["request_id"] = generate_request_id();
+    j["status_filter"] = status_filter;
+    send_json(j);
+}
+
+void FuturesClient::close() {
+    boost::asio::post(io_context_, [this]() { socket_.close(); });
+}
+
+std::string FuturesClient::generate_request_id() {
+    return "req_" + std::to_string(++request_id_counter_);
+}
+
+void FuturesClient::send_json(const json& j) {
+    std::string s = j.dump();
+    ChatMessage msg;
+    msg.body_length(s.size());
+    std::memcpy(msg.body(), s.data(), msg.body_length());
+    msg.encode_header();
+    write(msg);
+}
+
+void FuturesClient::write(const ChatMessage& msg) {
+    boost::asio::post(io_context_,
+        [this, msg]() {
+            bool write_in_progress = !write_msgs_.empty();
+            write_msgs_.push_back(msg);
+            if (!write_in_progress) {
+                do_write();
+            }
+        });
+}
+
+void FuturesClient::do_connect(const tcp::resolver::results_type& endpoints) {
+    boost::asio::async_connect(socket_, endpoints,
+        [this](boost::system::error_code ec, tcp::endpoint) {
+            if (!ec) {
+                std::cout << "[Client] Connected to server." << std::endl;
+                do_read_header();
+            } else {
+                std::cerr << "[Client] Connect failed: " << ec.message() << std::endl;
+            }
+        });
+}
+
+void FuturesClient::do_read_header() {
+    boost::asio::async_read(socket_,
+        boost::asio::buffer(read_msg_.data(), ChatMessage::header_length),
+        [this](boost::system::error_code ec, std::size_t /*length*/) {
+            if (!ec && read_msg_.decode_header()) {
+                do_read_body();
+            } else {
+                socket_.close();
+            }
+        });
+}
+
+void FuturesClient::do_read_body() {
+    boost::asio::async_read(socket_,
+        boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
+        [this](boost::system::error_code ec, std::size_t /*length*/) {
+            if (!ec) {
+                // 解析收到的消息
+                std::string received_data(read_msg_.body(), read_msg_.body_length());
+                try {
+                    json j = json::parse(received_data);
+                    handle_message(j);
+                } catch (json::parse_error& e) {
+                    std::cerr << "[Client] JSON parse error: " << e.what() << std::endl;
+                }
+
+                do_read_header();
+            } else {
+                socket_.close();
+            }
+        });
+}
+
+void FuturesClient::handle_message(const json& j) {
+    // 1. 协议层逻辑：自动回复 ACK
+    if (j.value("type", "") == "alert_triggered" && j.contains("alert_id")) {
+        json ack;
+        ack["type"] = "alert_ack";
+        ack["alert_id"] = j["alert_id"];
+        send_json(ack);
+        // 注意：这里不return，继续向下传递给UI，因为UI也需要弹窗
+    }
+
+    // 2. 通知 UI 层
+    if (message_callback_) {
+        message_callback_(j);
+    } else {
+        // 如果没有设置回调，默认打印到控制台方便调试
+        std::cout << "[Client] Unhandled Message: " << j.dump(4) << std::endl;
+    }
+}
+
+void FuturesClient::do_write() {
+    boost::asio::async_write(socket_,
+        boost::asio::buffer(write_msgs_.front().data(),
+          write_msgs_.front().length()),
+        [this](boost::system::error_code ec, std::size_t /*length*/) {
+            if (!ec) {
+                write_msgs_.pop_front();
+                if (!write_msgs_.empty()) {
+                    do_write();
+                }
+            } else {
+                socket_.close();
+            }
+        });
+}
