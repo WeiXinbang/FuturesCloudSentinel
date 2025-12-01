@@ -28,6 +28,23 @@ Page {
 
         MenuSeparator { Layout.fillWidth: true }
 
+        Label { text: "Notification"; font.bold: true; font.pixelSize: 16 }
+        
+        RowLayout {
+            Label { text: "Email Address:" }
+            TextField { 
+                id: emailField
+                placeholderText: "alert@example.com"
+                Layout.fillWidth: true 
+            }
+            Button {
+                text: "Set"
+                onClicked: backend.setEmail(emailField.text)
+            }
+        }
+
+        MenuSeparator { Layout.fillWidth: true }
+
         Label { text: "Network"; font.bold: true; font.pixelSize: 16 }
 
         CheckBox {

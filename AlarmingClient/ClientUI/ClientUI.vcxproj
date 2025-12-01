@@ -65,10 +65,10 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <IncludePath>$(ProjectDir)..\vcpkg_installed\x64-windows\include;$(ProjectDir)..\..\base;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\vcpkg_installed\x64-windows\include;$(ProjectDir)..\base;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <IncludePath>$(ProjectDir)..\vcpkg_installed\x64-windows\include;$(ProjectDir)..\..\base;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\vcpkg_installed\x64-windows\include;$(ProjectDir)..\base;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -108,11 +108,11 @@
   <ItemGroup>
     <ClCompile Include="Backend.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="..\..\base\FuturesClient.cpp" />
+    <ClCompile Include="..\base\FuturesClient.cpp" />
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="Backend.h" />
-    <ClInclude Include="..\..\base\FuturesClient.h" />
+    <ClInclude Include="..\base\FuturesClient.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\ContractCode.CSV" />

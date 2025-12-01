@@ -15,7 +15,7 @@ Page {
         }
 
         delegate: ItemDelegate {
-            width: parent.width
+            width: ListView.view.width
             contentItem: RowLayout {
                 Label { text: model.time; font.family: "Consolas"; color: "gray" }
                 Label { 

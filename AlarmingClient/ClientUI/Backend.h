@@ -1,11 +1,12 @@
 #pragma once
 #include <QObject>
 #include <QString>
+#include <QVariant>
 #include <thread>
 #include <memory>
 #include <boost/asio.hpp>
 #include <nlohmann/json.hpp>
-#include "../../base/FuturesClient.h"
+#include "../base/FuturesClient.h"
 
 class Backend : public QObject {
     Q_OBJECT
@@ -17,10 +18,19 @@ public:
     Q_INVOKABLE void registerUser(const QString &username, const QString &password);
     
     Q_PROPERTY(QStringList contractCodes READ contractCodes NOTIFY contractCodesChanged)
-    QStringList contractCodes() const { return contractCodes_; }
+    QStringList contractCodes() const { return filteredContractCodes_; }
+
+    Q_INVOKABLE void filterContractCodes(const QString &text);
 
     // 预警管理接口
     Q_INVOKABLE void addPriceWarning(const QString &symbolText, double maxPrice, double minPrice);
+    Q_INVOKABLE void modifyPriceWarning(const QString &orderId, double maxPrice, double minPrice);
+    Q_INVOKABLE void deleteWarning(const QString &orderId);
+    Q_INVOKABLE void queryWarnings(const QString &statusFilter = "all");
+    Q_INVOKABLE void setEmail(const QString &email);
+
+    Q_PROPERTY(QVariantList warningList READ warningList NOTIFY warningListChanged)
+    QVariantList warningList() const { return warningList_; }
 
 signals:
     void loginSuccess();
@@ -29,11 +39,14 @@ signals:
     void registerFailed(const QString &message);
     void showMessage(const QString &message);
     void contractCodesChanged();
+    void warningListChanged();
 
 private:
     void onMessageReceived(const nlohmann::json& j);
 
-    QStringList contractCodes_;
+    QStringList allContractCodes_;
+    QStringList filteredContractCodes_;
+    QVariantList warningList_;
 
     boost::asio::io_context io_context_;
     std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> work_guard_;

@@ -10,6 +10,10 @@ ApplicationWindow {
     width: 800
     height: 600
     title: "Futures Alarming Client"
+    
+    // Global Font Settings
+    font.family: "Microsoft YaHei UI"
+    font.pixelSize: 14
 
     property alias tips: tips
 
@@ -23,7 +27,7 @@ ApplicationWindow {
 
     TipsPopup {
         id: tips
-        anchors.centerIn: parent
+        // anchors.centerIn: parent // Removed to allow TipsPopup to position itself
     }
 
     Connections {
