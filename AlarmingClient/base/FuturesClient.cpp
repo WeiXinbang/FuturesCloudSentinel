@@ -273,6 +273,21 @@ void FuturesClient::do_write() {
 }
 
 #ifdef CLIENT_DEBUG_SIMULATION
+void FuturesClient::simulate_alert_trigger(const std::string& symbol, double price, const std::string& message) {
+    json j;
+    j["type"] = "alert_triggered";
+    j["alert_id"] = "alert_" + std::to_string(std::rand());
+    j["symbol"] = symbol;
+    j["trigger_price"] = price;
+    j["message"] = message;
+    j["timestamp"] = "2023-10-27 10:00:00";
+
+    // 模拟服务器推送
+    boost::asio::post(io_context_, [this, j]() {
+        handle_message(j);
+    });
+}
+
 void FuturesClient::simulate_response(const json& request) {
     // 模拟服务器处理延迟
     // 在实际场景中，这里可以根据 request["type"] 构造不同的回复
@@ -282,22 +297,87 @@ void FuturesClient::simulate_response(const json& request) {
     if (request.contains("request_id")) {
         response["request_id"] = request["request_id"];
     }
-    response["success"] = true;
     
     std::string req_type = request.value("type", "unknown");
-    response["message"] = "Debug: Operation '" + req_type + "' simulated successfully.";
+    bool success = true;
+    std::string message = "Operation successful";
 
-    // 如果是查询，模拟返回一些数据
-    if (req_type == "query_warnings") {
-        json warnings = json::array();
-        json w1;
-        w1["order_id"] = "mock_1";
-        w1["symbol"] = "BTCUSDT";
-        w1["type"] = "price";
-        w1["max_price"] = 50000.0;
-        warnings.push_back(w1);
-        response["data"] = warnings;
+    // --- 模拟逻辑 ---
+
+    if (req_type == "login") {
+        std::string user = request.value("username", "");
+        std::string pass = request.value("password", "");
+        if (user == "error_user") {
+            success = false;
+            message = "User not found (Simulated)";
+        } else if (pass == "wrong_pass") {
+            success = false;
+            message = "Invalid password (Simulated)";
+        } else {
+            message = "Login successful";
+        }
+    } 
+    else if (req_type == "register") {
+        std::string user = request.value("username", "");
+        if (user == "existing_user") {
+            success = false;
+            message = "User already exists (Simulated)";
+        } else {
+            message = "Registration successful";
+        }
     }
+    else if (req_type == "add_warning") {
+        json new_warning = request;
+        // 移除请求特有的字段，保留数据字段
+        new_warning.erase("type");
+        new_warning.erase("request_id");
+        
+        // 生成模拟 ID
+        new_warning["order_id"] = "mock_ord_" + std::to_string(mock_warnings_.size() + 1);
+        new_warning["status"] = "active";
+        
+        mock_warnings_.push_back(new_warning);
+        message = "Warning added";
+    }
+    else if (req_type == "modify_warning") {
+        std::string order_id = request.value("order_id", "");
+        bool found = false;
+        for (auto& w : mock_warnings_) {
+            if (w.value("order_id", "") == order_id) {
+                // 更新字段
+                if (request.contains("max_price")) w["max_price"] = request["max_price"];
+                if (request.contains("min_price")) w["min_price"] = request["min_price"];
+                if (request.contains("trigger_time")) w["trigger_time"] = request["trigger_time"];
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            success = false;
+            message = "Warning not found";
+        } else {
+            message = "Warning modified";
+        }
+    }
+    else if (req_type == "delete_warning") {
+        std::string order_id = request.value("order_id", "");
+        auto it = std::remove_if(mock_warnings_.begin(), mock_warnings_.end(),
+            [&](const json& w) { return w.value("order_id", "") == order_id; });
+        
+        if (it != mock_warnings_.end()) {
+            mock_warnings_.erase(it, mock_warnings_.end());
+            message = "Warning deleted";
+        } else {
+            success = false;
+            message = "Warning not found";
+        }
+    }
+    else if (req_type == "query_warnings") {
+        response["data"] = mock_warnings_;
+    }
+
+    response["success"] = success;
+    response["message"] = message;
 
     // 使用 post 将回调放入 io_context 队列，模拟异步接收
     // 这样可以确保回调在 io_context 线程中执行，与真实网络行为一致
