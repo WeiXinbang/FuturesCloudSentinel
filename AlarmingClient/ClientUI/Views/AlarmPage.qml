@@ -133,7 +133,7 @@ Page {
                         // Clear inputs only if we were adding (successful add)
                         // But if user was typing, maybe we shouldn't? 
                         // Let's clear to indicate success.
-                        resetForm(false)
+                        detailPanel.resetForm(false)
                     }
                 }
             }
