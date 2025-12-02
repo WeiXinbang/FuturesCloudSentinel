@@ -21,6 +21,10 @@ set(SOURCES
     ClientUI/main.cpp
     ClientUI/Backend.cpp
     ClientUI/Backend.h
+    ClientUI/AuthManager.cpp
+    ClientUI/AuthManager.h
+    ClientUI/WarningManager.cpp
+    ClientUI/WarningManager.h
     ClientUI/QuoteClient.cpp
     ClientUI/QuoteClient.h
     base/FuturesClient.cpp

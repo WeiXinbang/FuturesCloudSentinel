@@ -52,4 +52,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: FuturesCloudSentinel-Client
-        path: AlarmingClient/x64/Release/
+        path: AlarmingClient/build/Release/

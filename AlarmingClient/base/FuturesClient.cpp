@@ -1,5 +1,6 @@
-#include "FuturesClient.h"
+﻿#include "FuturesClient.h"
 #include <cstring>
+#include <chrono>
 
 // ==========================================
 // ChatMessage 类实现
@@ -144,10 +145,16 @@ void FuturesClient::modify_time_warning(const std::string& order_id, const std::
     send_json(j);
 }
 
-void FuturesClient::query_warnings(const std::string& status_filter) {
+long long FuturesClient::current_timestamp() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+void FuturesClient::query_warnings(const std::string& account, const std::string& status_filter) {
     json j;
     j["type"] = "query_warnings";
     j["request_id"] = generate_request_id();
+    j["account"] = account;
     j["status_filter"] = status_filter;
     send_json(j);
 }
@@ -162,7 +169,12 @@ std::string FuturesClient::generate_request_id() {
     return "req_" + std::to_string(++request_id_counter_);
 }
 
-void FuturesClient::send_json(const json& j) {
+void FuturesClient::send_json(const json& j_in) {
+    json j = j_in;
+    // Add common fields
+    j["ver"] = "3.1";
+    j["ts"] = current_timestamp();
+
 #ifdef GLOBAL_DEBUG_MODE
     // 调试模式：拦截发送，直接调用模拟响应
     std::cout << "[Debug] Sending JSON: " << j.dump() << std::endl;

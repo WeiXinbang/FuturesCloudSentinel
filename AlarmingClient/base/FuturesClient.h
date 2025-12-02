@@ -150,9 +150,10 @@ public:
 
     /**
      * @brief 查询预警单列表
+     * @param account 用户名/账号
      * @param status_filter 状态过滤 ("active", "triggered", "all")
      */
-    void query_warnings(const std::string& status_filter);
+    void query_warnings(const std::string& account, const std::string& status_filter);
 
     /**
      * @brief 关闭连接
@@ -170,6 +171,7 @@ public:
 
 private:
     // --- 内部辅助方法 ---
+    long long current_timestamp();              ///< 获取当前时间戳 (毫秒)
     std::string generate_request_id();          ///< 生成唯一的请求 ID
     void send_json(const json& j);              ///< 序列化 JSON 并发送
     void write(const ChatMessage& msg);         ///< 将消息推入发送队列

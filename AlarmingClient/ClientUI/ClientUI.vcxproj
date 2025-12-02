@@ -118,12 +118,16 @@ if not exist "$(OutDir)flow" mkdir "$(OutDir)flow"</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Backend.cpp" />
+    <ClCompile Include="AuthManager.cpp" />
+    <ClCompile Include="WarningManager.cpp" />
     <ClCompile Include="QuoteClient.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="..\base\FuturesClient.cpp" />
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="Backend.h" />
+    <QtMoc Include="AuthManager.h" />
+    <QtMoc Include="WarningManager.h" />
     <QtMoc Include="QuoteClient.h" />
     <ClInclude Include="..\base\FuturesClient.h" />
   </ItemGroup>

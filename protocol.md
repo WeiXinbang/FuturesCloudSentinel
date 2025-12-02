@@ -20,7 +20,40 @@
     *   **异步推送 (Server Push)**: 服务器可在任意时刻主动向客户端推送消息（如预警触发）。
     *   **心跳保活**: (可选) 建议客户端每 30 秒发送一次心跳包以维持连接。
 
-## 2. 业务数据定义 (Business Logic)
+## 2. 通用字段约定 (Common Fields)
+
+### 2.1 状态字段约定
+
+服务端在响应层不再传输自由文本 `message`，由 `status` + `error_code` 共同表达结果：
+
+* `status`: 枚举整数，`0` 代表成功，非 0 代表失败。
+* `error_code`: 整型，自定义错误码。
+* `data`: 可选的业务载荷（对象/数组）。
+
+#### 错误码定义 (Error Codes)
+
+| 错误码 | 英文标识 (Enum) | 描述 | 建议客户端行为 |
+| :--- | :--- | :--- | :--- |
+| **0** | `SUCCESS` | **操作成功** | 正常处理业务 |
+| **1001** | `UNKNOWN_ERROR` | 未知错误 | 提示“系统繁忙” |
+| **1002** | `INVALID_JSON` | JSON 格式解析失败 | 检查发送的数据包格式 |
+| **1003** | `MISSING_PARAMETER` | 缺少必填参数 | 检查协议字段是否完整 |
+| **1004** | `INVALID_PARAMETER` | 参数值不合法 | 提示用户输入有误 |
+| **1005** | `INTERNAL_SERVER_ERROR` | 服务器内部异常 | 提示“服务器开小差了” |
+| **1006** | `DB_ERROR` | 数据库操作失败 | 稍后重试 |
+| **1007** | `NETWORK_TIMEOUT` | 处理超时 | 稍后重试 |
+| **2001** | `USER_NOT_FOUND` | 用户不存在 | 提示检查用户名 |
+| **2002** | `PASSWORD_INCORRECT` | 密码错误 | 提示重新输入 |
+| **2003** | `USER_ALREADY_EXISTS` | 用户名已存在 | 提示更换用户名 (注册时) |
+| **2004** | `NOT_LOGGED_IN` | 未登录或会话无效 | **强制跳转到登录页** |
+| **2005** | `SESSION_EXPIRED` | 会话已过期 | **强制跳转到登录页** |
+| **2006** | `ACCOUNT_LOCKED` | 账号被锁定/禁用 | 联系管理员 |
+| **2007** | `PERMISSION_DENIED` | 无权操作此数据 | 提示“无权访问” |
+| **3001** | `WARNING_NOT_FOUND` | 预警单不存在 | 刷新列表，移除该条目 |
+| **3002** | `INVALID_SYMBOL` | 合约代码不存在/不支持 | 提示检查合约代码 |
+| **3006** | `MARKET_CLOSED` | 休市期间无法操作 | 提示交易时间再试 |
+
+## 3. 业务数据定义 (Business Logic)
 
 所有 JSON 消息必须包含 `type` 字段，用于标识消息类型。
 
@@ -143,6 +176,38 @@
 }
 ```
 
+**响应示例**:
+```json
+{
+    "type": "response",
+    "request_id": "req_008",
+    "status": 0,
+    "error_code": 0,
+    "data": {
+        "warnings": [
+            {
+                "order_id": "1001",
+                "symbol": "rb2310",
+                "warning_type": "price",
+                "max_price": 3600.0,
+                "min_price": 3400.0,
+                "status": "active",
+                "created_at": "2025-12-02T09:30:00Z"
+            },
+            {
+                "order_id": "1002",
+                "symbol": "rb2310",
+                "warning_type": "time",
+                "trigger_time": "2023-11-25 14:55:00",
+                "status": "active",
+                "created_at": "2025-12-02T10:00:00Z"
+            }
+        ],
+        "total": 2
+    }
+}
+```
+
 #### 8. 通用响应 (Server Response)
 *   **方向**: Server -> Client
 *   **描述**: 服务器对上述所有请求的回复。
@@ -151,10 +216,23 @@
     "type": "response",
     "request_id": "req_004",     // [重要] 回传请求中的 request_id，用于客户端匹配回调
     "request_type": "add_warning", // [可选] 提示原请求类型
-    "success": true,             // [必填] 操作是否成功
-    "message": "添加成功",       // [可选] 状态描述或错误信息
+    "status": 0,                 // [必填] 0=成功, 非0=失败
+    "error_code": 0,             // [必填] 错误码 (成功为0)
     "data": {                    // [可选] 附加数据
         "order_id": "1002"       // 例如：添加成功后返回新生成的 ID
+    }
+}
+```
+
+**失败响应示例**:
+```json
+{
+    "type": "response",
+    "request_id": "req_004",
+    "status": 1,
+    "error_code": 2003,          // 例如: 2003=用户名已存在
+    "data": {
+        "hint": "username 'client001' is taken" // [可选] 调试提示
     }
 }
 ```
@@ -170,7 +248,6 @@
     "symbol": "rb2310",          // 合约代码
     "trigger_value": 3601.0,     // 触发时的实际数值 (价格)
     "trigger_time": "2023-11-25 15:00:01", // 触发时间
-    "message": "您的螺纹钢合约已突破上限 3600.0，当前价格 3601.0！" // 显示给用户的文本
 }
 ```
 
