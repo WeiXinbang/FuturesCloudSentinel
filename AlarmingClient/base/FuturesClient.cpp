@@ -51,7 +51,7 @@ FuturesClient::FuturesClient(boost::asio::io_context& io_context,
     : io_context_(io_context),
       socket_(io_context),
       request_id_counter_(0) {
-#ifndef CLIENT_DEBUG_SIMULATION
+#ifndef GLOBAL_DEBUG_MODE
     // 正常模式：发起 TCP 连接
     do_connect(endpoints);
 #else
@@ -163,7 +163,7 @@ std::string FuturesClient::generate_request_id() {
 }
 
 void FuturesClient::send_json(const json& j) {
-#ifdef CLIENT_DEBUG_SIMULATION
+#ifdef GLOBAL_DEBUG_MODE
     // 调试模式：拦截发送，直接调用模拟响应
     std::cout << "[Debug] Sending JSON: " << j.dump() << std::endl;
     simulate_response(j);
@@ -272,7 +272,7 @@ void FuturesClient::do_write() {
         });
 }
 
-#ifdef CLIENT_DEBUG_SIMULATION
+#ifdef GLOBAL_DEBUG_MODE
 void FuturesClient::simulate_alert_trigger(const std::string& symbol, double price, const std::string& message) {
     json j;
     j["type"] = "alert_triggered";

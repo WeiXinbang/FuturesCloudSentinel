@@ -48,9 +48,20 @@ public:
 
     Q_PROPERTY(QVariantList warningList READ warningList NOTIFY warningListChanged)
     Q_PROPERTY(QString username READ username NOTIFY usernameChanged)
+    Q_PROPERTY(bool isDebug READ isDebug CONSTANT)
+    Q_PROPERTY(QString serverAddress READ serverAddress WRITE setServerAddress NOTIFY serverAddressChanged)
     
     QString username() const { return currentUsername_; }
     QVariantList warningList() const { return warningList_; }
+    bool isDebug() const {
+#ifdef GLOBAL_DEBUG_MODE
+        return true;
+#else
+        return false;
+#endif
+    }
+    QString serverAddress() const { return serverAddress_; }
+    void setServerAddress(const QString &addr);
 
 signals:
     void loginSuccess();
@@ -63,15 +74,18 @@ signals:
     void pricesChanged();
     void logReceived(const QString &time, const QString &level, const QString &message);
     void usernameChanged();
+    void serverAddressChanged();
 
 private:
     void onMessageReceived(const nlohmann::json& j);
     void onPriceUpdated(const QString& symbol, double price);
+    void connectToServer();
 
     QStringList allContractCodes_;
     QStringList filteredContractCodes_;
     QVariantList warningList_;
     QVariantMap prices_;
+    QString serverAddress_ = "127.0.0.1"; // Default
 
     boost::asio::io_context io_context_;
     std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> work_guard_;

@@ -11,9 +11,9 @@
 using boost::asio::ip::tcp;
 using json = nlohmann::json;
 
-// Uncomment the following line to enable debug simulation mode
-// 取消注释以下行以启用调试模拟模式 (不连接真实服务器)
-#define CLIENT_DEBUG_SIMULATION
+// Uncomment the following line to enable global debug mode (Simulation + Debug UI)
+// 取消注释以下行以启用全局调试模式 (模拟服务器 + 调试UI功能)
+#define GLOBAL_DEBUG_MODE
 
 // --- 协议定义 ---
 
@@ -160,7 +160,7 @@ public:
      */
     void close();
 
-#ifdef CLIENT_DEBUG_SIMULATION
+#ifdef GLOBAL_DEBUG_MODE
     /**
      * @brief 模拟触发预警 (调试用)
      * 手动触发一条预警消息推送给客户端
@@ -181,7 +181,7 @@ private:
     void handle_message(const json& j);                            ///< 处理完整的 JSON 消息
     void do_write();                                               ///< 执行实际的 Socket 写入
 
-#ifdef CLIENT_DEBUG_SIMULATION
+#ifdef GLOBAL_DEBUG_MODE
     /**
      * @brief 模拟服务器响应 (调试模式)
      * 在不连接真实服务器的情况下，构造虚假的响应数据并触发回调。

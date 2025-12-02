@@ -32,24 +32,44 @@ Backend::Backend(QObject *parent) : QObject(parent) {
 
     work_guard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(io_context_.get_executor());
     
+    connectToServer();
+}
+
+void Backend::connectToServer() {
+    if (client_) {
+        client_->close();
+        client_.reset();
+    }
+
     tcp::resolver resolver(io_context_);
-    // Assuming server is on localhost 8888 for now. 
-    // In a real app, this should be configurable.
     try {
         // Note: resolve is blocking here, but it's in constructor so it blocks main thread briefly.
         // Ideally should be async or in the thread.
-        auto endpoints = resolver.resolve("127.0.0.1", "8888");
+        auto endpoints = resolver.resolve(serverAddress_.toStdString(), "8888");
         client_ = std::make_unique<FuturesClient>(io_context_, endpoints);
         
         client_->set_message_callback([this](const nlohmann::json& j) {
             this->onMessageReceived(j);
         });
 
-        io_thread_ = std::thread([this]() {
-            io_context_.run();
-        });
+        if (!io_thread_.joinable()) {
+            io_thread_ = std::thread([this]() {
+                io_context_.run();
+            });
+        }
     } catch (std::exception& e) {
         qCritical() << "Failed to initialize client:" << e.what();
+    }
+}
+
+void Backend::setServerAddress(const QString &addr) {
+    if (serverAddress_ != addr) {
+        serverAddress_ = addr;
+        emit serverAddressChanged();
+        // Reconnect logic could go here, but usually we wait for explicit action or next login attempt
+        // For simplicity, let's reconnect immediately or on next login.
+        // Given the user changes this on login screen, we should probably reconnect before login.
+        connectToServer();
     }
 }
 
@@ -408,7 +428,7 @@ void Backend::clearCredentials() {
 }
 
 void Backend::testTriggerAlert(const QString &symbol) {
-#ifdef CLIENT_DEBUG_SIMULATION
+#ifdef GLOBAL_DEBUG_MODE
     if (client_) {
         // 模拟触发一个预警
         // 使用传入的合约代码，或者默认 IF2310

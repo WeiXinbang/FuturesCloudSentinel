@@ -1,0 +1,62 @@
+name: Windows Build
+
+on:
+  push:
+    branches: [ "feature/GUI", "main" ]
+  pull_request:
+    branches: [ "feature/GUI", "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+        vcpkgGitCommitId: '87657e082e875631fd9e66f874727c9bd85913a8' # Pin a specific commit for stability
+        vcpkgJsonGlob: '**/vcpkg.json'
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.8.0'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2022_64'
+        dir: '${{ github.workspace }}/qt/'
+        install-deps: 'true'
+        modules: 'qtcharts qtwebengine'
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1.1
+
+    - name: Restore NuGet packages
+      working-directory: AlarmingClient
+      run: nuget restore AlarmingClient.slnx
+
+    - name: Build with MSBuild
+      working-directory: AlarmingClient
+      # Override Qt settings to use the CI-installed Qt instead of the local .vcxproj setting
+      # QtInstallDir tells the Qt VS Tools where Qt is located
+      run: |
+        $qtDir = "${{ github.workspace }}/qt/Qt/6.8.0/msvc2022_64"
+        echo "Using Qt at: $qtDir"
+        msbuild AlarmingClient.slnx /p:Configuration=Release /p:Platform=x64 /p:QtInstallDir="$qtDir" /p:QtModules="core;gui;widgets;network;qml;quick;quickcontrols2"
+
+    - name: Deploy Qt Dependencies
+      working-directory: AlarmingClient/x64/Release
+      run: |
+        $qtBin = "${{ github.workspace }}/qt/Qt/6.8.0/msvc2022_64/bin"
+        & "$qtBin/windeployqt.exe" --qmldir ../../ClientUI/Views ClientUI.exe
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FuturesCloudSentinel-Client
+        path: AlarmingClient/x64/Release/

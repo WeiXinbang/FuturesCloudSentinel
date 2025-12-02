@@ -67,6 +67,15 @@ Page {
             Layout.fillWidth: true
         }
 
+        TextField {
+            id: serverIpField
+            placeholderText: "Server IP (Debug Only)"
+            Layout.fillWidth: true
+            visible: backend.isDebug
+            text: backend.serverAddress
+            onEditingFinished: backend.serverAddress = text
+        }
+
         RowLayout {
             Layout.fillWidth: true
             CheckBox {
