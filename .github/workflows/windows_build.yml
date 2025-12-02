@@ -33,20 +33,17 @@ jobs:
         install-deps: 'true'
         modules: 'qtcharts qtwebengine'
 
-    - name: Add MSBuild to PATH
-      uses: microsoft/setup-msbuild@v1.1
-
-    - name: Build with MSBuild
+    - name: Configure CMake
       working-directory: AlarmingClient
-      # Override Qt settings to use the CI-installed Qt instead of the local .vcxproj setting
-      # QtInstallDir tells the Qt VS Tools where Qt is located
       run: |
-        $qtDir = "${{ github.workspace }}/qt/Qt/6.8.0/msvc2022_64"
-        echo "Using Qt at: $qtDir"
-        msbuild AlarmingClient.slnx /p:Configuration=Release /p:Platform=x64 /p:QtInstallDir="$qtDir"
+        cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build with CMake
+      working-directory: AlarmingClient
+      run: cmake --build build --config Release
 
     - name: Deploy Qt Dependencies
-      working-directory: AlarmingClient/x64/Release
+      working-directory: AlarmingClient/build/Release
       run: |
         $qtBin = "${{ github.workspace }}/qt/Qt/6.8.0/msvc2022_64/bin"
         & "$qtBin/windeployqt.exe" --qmldir ../../ClientUI/Views ClientUI.exe
