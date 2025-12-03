@@ -13,7 +13,11 @@
 #include "base.h"
 #include "handler.h"
 #include "router.h"
+#include "thread_local.h"
 
+#include <thread>
+#include <memory>
+#include <atomic>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -141,8 +145,9 @@ private:
                 break;
             }
         }
-
+        FuturesAlertServer::stopUserWatcher(ThreadLocalUser::GetUserToken() );
         closesocket(client->clientSocket);
+
         std::cout << "[连接关闭] IP: " << clientIP << ", 端口: " << clientPort << std::endl;
     }
 

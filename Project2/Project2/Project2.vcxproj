@@ -137,7 +137,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="db_manager.cpp" />
     <ClCompile Include="threadpool.cpp" />
-    <ClCompile Include="thread_local_user_id.cpp" />
+    <ClCompile Include="thread_local.cpp" />
     <ClCompile Include="userMapper.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -146,7 +146,7 @@
     <ClInclude Include="handler.h" />
     <ClInclude Include="router.h" />
     <ClInclude Include="threadpool.h" />
-    <ClInclude Include="thread_local_user_id.h" />
+    <ClInclude Include="thread_local.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

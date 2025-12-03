@@ -3,7 +3,7 @@
 #include <jdbc/cppconn/exception.h>
 #include "jdbc/mysql_driver.h"
 //#include<windows.h>
-#include "thread_local_user_id.h"
+#include "thread_local.h"
 #include "threadpool.h"
 #define WIN32_LEAN_AND_MEAN
 

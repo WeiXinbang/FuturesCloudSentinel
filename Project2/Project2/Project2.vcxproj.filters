@@ -30,7 +30,7 @@
     <ClCompile Include="userMapper.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="thread_local_user_id.cpp">
+    <ClCompile Include="thread_local.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\HUAWEI\Documents\Tencent Files\2649796443\FileRecv\Message.cpp">
@@ -44,7 +44,7 @@
     <ClInclude Include="db_manager.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="thread_local_user_id.h">
+    <ClInclude Include="thread_local.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="threadpool.h">
