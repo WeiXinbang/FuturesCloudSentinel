@@ -45,6 +45,18 @@
     <ClCompile Include="MduserHandler.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="EmailNotifier.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MarketSeverce.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MduserHandler.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="clientMessage.h">
+      <Filter>头文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="db_manager.h">
