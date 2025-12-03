@@ -4,7 +4,10 @@ import QtQuick.Layouts
 
 Page {
     id: shellPage
+    property var theme: ApplicationWindow.window.theme
     
+    background: Rectangle { color: theme.background }
+
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
@@ -34,6 +37,17 @@ Page {
         id: drawer
         width: Math.min(shellPage.width * 0.66, 250)
         height: shellPage.height
+        
+        background: Rectangle {
+            color: theme.surface
+            Rectangle {
+                anchors.right: parent.right
+                width: 1
+                height: parent.height
+                color: theme.colorOutline
+                opacity: 0.2
+            }
+        }
 
         ColumnLayout {
             anchors.fill: parent
@@ -44,19 +58,41 @@ Page {
                 Layout.preferredHeight: 150
                 Rectangle {
                     anchors.fill: parent
-                    color: "#0078d4"
+                    color: theme.surface // Clean surface color
+                    
+                    // Decorative strip on the left
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: 4
+                        color: theme.primary
+                    }
+
+                    // Subtle bottom border
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        width: parent.width
+                        height: 1
+                        color: theme.colorOutline
+                        opacity: 0.1
+                    }
+                    
                     Column {
                         anchors.centerIn: parent
                         spacing: 10
                         Label {
-                            text: "User: 123456"
-                            color: "white"
+                            text: "User: " + (backend.username ? backend.username : "Guest")
+                            color: theme.colorOnSurface 
                             font.bold: true
+                            font.pixelSize: 18
                         }
                         Label {
                             text: "Connected"
-                            color: "#e0e0e0"
+                            color: theme.primary // Use primary color for status to echo the strip
+                            opacity: 0.9
                             font.pixelSize: 12
+                            font.bold: true
                         }
                     }
                 }
@@ -77,7 +113,9 @@ Page {
                     width: parent.width
                     highlighted: ListView.isCurrentItem
                     onClicked: {
-                        viewStack.currentIndex = index
+                        // Update the ListView's current index to match the click
+                        navList.currentIndex = index
+                        // StackLayout is bound to navList.currentIndex, so it updates automatically
                         drawer.close()
                     }
                 }

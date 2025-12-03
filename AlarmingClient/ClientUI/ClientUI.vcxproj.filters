@@ -22,6 +22,12 @@
     <ClCompile Include="Backend.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="AuthManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WarningManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -45,6 +51,12 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="Backend.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="AuthManager.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="WarningManager.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

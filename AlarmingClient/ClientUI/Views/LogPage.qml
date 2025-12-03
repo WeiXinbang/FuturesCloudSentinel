@@ -4,14 +4,25 @@ import QtQuick.Layouts
 
 Page {
     title: "System Logs"
+    property var theme: ApplicationWindow.window.theme
+
+    background: Rectangle { color: theme.background }
 
     ListView {
+        id: logListView
         anchors.fill: parent
         clip: true
         model: ListModel {
-            ListElement { time: "10:00:01"; level: "INFO"; message: "System started" }
-            ListElement { time: "10:00:02"; level: "INFO"; message: "Connected to CTP Front" }
-            ListElement { time: "10:00:05"; level: "WARN"; message: "Market data delay detected" }
+            id: logModel
+            // ListElement { time: "10:00:01"; level: "INFO"; message: "System started" }
+        }
+
+        Connections {
+            target: backend
+            function onLogReceived(time, level, message) {
+                logModel.append({ "time": time, "level": level, "message": message })
+                logListView.positionViewAtEnd()
+            }
         }
 
         delegate: ItemDelegate {

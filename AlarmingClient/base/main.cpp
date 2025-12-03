@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
         auto endpoints = resolver.resolve(host, port);
 
         // 实例化客户端
-        // 注意：FuturesClient.h 中定义了 CLIENT_DEBUG_SIMULATION 宏
+        // 注意：FuturesClient.h 中定义了 GLOBAL_DEBUG_MODE 宏
         // 如果该宏开启，客户端将不会连接真实服务器，而是进入模拟模式
         FuturesClient c(io_context, endpoints);
 
@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
         // ==========================================
         // 3. 模拟用户操作 (仅在调试模式下演示)
         // ==========================================
-#ifdef CLIENT_DEBUG_SIMULATION
+#ifdef GLOBAL_DEBUG_MODE
         // 模拟用户点击 "登录" 按钮
         std::cout << "[Main] 模拟用户登录..." << std::endl;
         c.login("test_user", "123456");

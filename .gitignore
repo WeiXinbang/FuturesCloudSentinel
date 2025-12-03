@@ -33,6 +33,7 @@ bld/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+build/
 
 # Build results on 'Bin' directories
 **/[Bb]in/*
@@ -421,3 +422,7 @@ FodyWeavers.xsd
 # vcpkg
 vcpkg/
 vcpkg_installed/
+
+# CTP DLLs exception
+!AlarmingClient/ClientUI/CTP/bin/*.dll
+!AlarmingClient/ClientUI/CTP/lib/*.lib

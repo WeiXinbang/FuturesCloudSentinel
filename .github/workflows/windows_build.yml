@@ -1,0 +1,55 @@
+name: Windows Build
+
+on:
+  push:
+    branches: [ "feature/GUI", "main" ]
+  pull_request:
+    branches: [ "feature/GUI", "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+        # vcpkgGitCommitId is removed; we use builtin-baseline in vcpkg.json
+        vcpkgJsonGlob: '**/vcpkg.json'
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.8.0'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2022_64'
+        dir: '${{ github.workspace }}/qt/'
+        install-deps: 'true'
+        modules: 'qtcharts qtwebengine'
+
+    - name: Configure CMake
+      working-directory: AlarmingClient
+      run: |
+        cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build with CMake
+      working-directory: AlarmingClient
+      run: cmake --build build --config Release
+
+    - name: Deploy Qt Dependencies
+      working-directory: AlarmingClient/build/Release
+      run: |
+        $qtBin = "${{ github.workspace }}/qt/Qt/6.8.0/msvc2022_64/bin"
+        & "$qtBin/windeployqt.exe" --qmldir ../../ClientUI/Views ClientUI.exe
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FuturesCloudSentinel-Client
+        path: AlarmingClient/build/Release/

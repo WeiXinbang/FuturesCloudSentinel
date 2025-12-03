@@ -1,10 +1,35 @@
 ﻿#include "Backend.h"
 #include "ContractData.h"
 #include <QDebug>
-#include <QCryptographicHash>
 #include <QCoreApplication>
+#include <QTime>
 
 Backend::Backend(QObject *parent) : QObject(parent) {
+    // Initialize Managers
+    authManager_ = new AuthManager(this);
+    warningManager_ = new WarningManager(this);
+
+    // Connect AuthManager signals
+    connect(authManager_, &AuthManager::loginSuccess, this, &Backend::loginSuccess);
+    connect(authManager_, &AuthManager::loginFailed, this, &Backend::loginFailed);
+    connect(authManager_, &AuthManager::registerSuccess, this, &Backend::registerSuccess);
+    connect(authManager_, &AuthManager::registerFailed, this, &Backend::registerFailed);
+    connect(authManager_, &AuthManager::usernameChanged, this, &Backend::usernameChanged);
+    connect(authManager_, &AuthManager::usernameChanged, [this](){
+        warningManager_->setCurrentUsername(authManager_->currentUsername());
+    });
+
+    // Connect WarningManager signals
+    connect(warningManager_, &WarningManager::warningListChanged, this, &Backend::warningListChanged);
+    connect(warningManager_, &WarningManager::operationResult, [this](bool success, const QString& message){
+        emit showMessage(message);
+    });
+    connect(warningManager_, &WarningManager::subscribeRequest, [this](const QStringList& symbols){
+        if (quoteClient_) {
+            quoteClient_->subscribe(symbols);
+        }
+    });
+
     // Load contract codes from hardcoded data
     allContractCodes_.clear();
     contractMap_.clear();
@@ -15,33 +40,57 @@ Backend::Backend(QObject *parent) : QObject(parent) {
         allContractCodes_.append(displayText);
         
         // 存入映射表: "中文名 (代码)" -> "代码"
-        // 同时也可以存入 "代码" -> "代码" 以支持直接输入代码的情况
         contractMap_[displayText.toStdString()] = entry.code;
         contractMap_[entry.code] = entry.code; 
     }
     filteredContractCodes_ = allContractCodes_;
     emit contractCodesChanged();
 
+    // Initialize QuoteClient
+    quoteClient_ = new QuoteClient(this);
+    connect(quoteClient_, &QuoteClient::priceUpdated, this, &Backend::onPriceUpdated);
+    // Connect to CTP (using demo address for now)
+    quoteClient_->connectToCtp("tcp://182.254.243.31:40011");
+
     work_guard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(io_context_.get_executor());
     
+    connectToServer();
+}
+
+void Backend::connectToServer() {
+    if (client_) {
+        client_->close();
+        client_.reset();
+    }
+
     tcp::resolver resolver(io_context_);
-    // Assuming server is on localhost 8888 for now. 
-    // In a real app, this should be configurable.
     try {
-        // Note: resolve is blocking here, but it's in constructor so it blocks main thread briefly.
-        // Ideally should be async or in the thread.
-        auto endpoints = resolver.resolve("127.0.0.1", "8888");
+        auto endpoints = resolver.resolve(serverAddress_.toStdString(), "8888");
         client_ = std::make_unique<FuturesClient>(io_context_, endpoints);
         
         client_->set_message_callback([this](const nlohmann::json& j) {
             this->onMessageReceived(j);
         });
 
-        io_thread_ = std::thread([this]() {
-            io_context_.run();
-        });
+        // Update managers with new client
+        authManager_->setClient(client_.get());
+        warningManager_->setClient(client_.get());
+
+        if (!io_thread_.joinable()) {
+            io_thread_ = std::thread([this]() {
+                io_context_.run();
+            });
+        }
     } catch (std::exception& e) {
         qCritical() << "Failed to initialize client:" << e.what();
+    }
+}
+
+void Backend::setServerAddress(const QString &addr) {
+    if (serverAddress_ != addr) {
+        serverAddress_ = addr;
+        emit serverAddressChanged();
+        connectToServer();
     }
 }
 
@@ -58,28 +107,71 @@ Backend::~Backend() {
     }
 }
 
+// --- Delegated Methods ---
+
 void Backend::login(const QString &username, const QString &password, const QString &brokerId, const QString &frontAddr) {
-    if (client_) {
-        current_request_type_ = "login";
-        currentUsername_ = username; // 暂存用户名
-        QString hashedPassword = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
-        // TODO: Pass brokerId and frontAddr when base library supports it
-        client_->login(username.toStdString(), hashedPassword.toStdString());
-    } else {
-        emit loginFailed("Not connected to server");
-    }
+    current_request_type_ = "login";
+    authManager_->login(username, password);
 }
 
 void Backend::registerUser(const QString &username, const QString &password) {
-    if (client_) {
-        current_request_type_ = "register";
-        currentUsername_ = username; // 注册成功后通常自动登录或需要记录
-        QString hashedPassword = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
-        client_->register_user(username.toStdString(), hashedPassword.toStdString());
-    } else {
-        emit registerFailed("Not connected to server");
-    }
+    current_request_type_ = "register";
+    authManager_->registerUser(username, password);
 }
+
+void Backend::saveCredentials(const QString &username, const QString &password, bool rememberUser, bool autoLogin) {
+    authManager_->saveCredentials(username, password, rememberUser, autoLogin);
+}
+
+QVariantMap Backend::loadCredentials() {
+    return authManager_->loadCredentials();
+}
+
+void Backend::clearCredentials() {
+    authManager_->clearCredentials();
+}
+
+QString Backend::username() const {
+    return authManager_->currentUsername();
+}
+
+void Backend::addPriceWarning(const QString &symbolText, double maxPrice, double minPrice) {
+    current_request_type_ = "add_warning";
+    std::string symbol = extractContractCode(symbolText);
+    warningManager_->addPriceWarning(QString::fromStdString(symbol), maxPrice, minPrice);
+}
+
+void Backend::addTimeWarning(const QString &symbolText, const QString &timeStr) {
+    current_request_type_ = "add_warning";
+    std::string symbol = extractContractCode(symbolText);
+    warningManager_->addTimeWarning(QString::fromStdString(symbol), timeStr);
+}
+
+void Backend::modifyPriceWarning(const QString &orderId, double maxPrice, double minPrice) {
+    current_request_type_ = "modify_warning";
+    warningManager_->modifyPriceWarning(orderId, maxPrice, minPrice);
+}
+
+void Backend::modifyTimeWarning(const QString &orderId, const QString &timeStr) {
+    current_request_type_ = "modify_warning";
+    warningManager_->modifyTimeWarning(orderId, timeStr);
+}
+
+void Backend::deleteWarning(const QString &orderId) {
+    current_request_type_ = "delete_warning";
+    warningManager_->deleteWarning(orderId);
+}
+
+void Backend::queryWarnings(const QString &statusFilter) {
+    current_request_type_ = "query_warnings";
+    warningManager_->queryWarnings(statusFilter);
+}
+
+QVariantList Backend::warningList() const {
+    return warningManager_->warningList();
+}
+
+// --- Other Methods ---
 
 void Backend::filterContractCodes(const QString &text) {
     if (text.isEmpty()) {
@@ -95,62 +187,14 @@ void Backend::filterContractCodes(const QString &text) {
     emit contractCodesChanged();
 }
 
-void Backend::addPriceWarning(const QString &symbolText, double maxPrice, double minPrice) {
-    if (!client_) {
-        emit showMessage("Not connected to server");
-        return;
-    }
-    if (currentUsername_.isEmpty()) {
-        emit showMessage("Please login first");
-        return;
-    }
-
-    std::string symbol = extractContractCode(symbolText);
-    current_request_type_ = "add_warning";
-    // 注意：这里假设了 account 就是 username。实际业务中可能不同。
-    client_->add_price_warning(currentUsername_.toStdString(), symbol, maxPrice, minPrice);
+void Backend::onPriceUpdated(const QString& symbol, double price) {
+    prices_[symbol] = price;
+    emit pricesChanged();
 }
 
-void Backend::modifyPriceWarning(const QString &orderId, double maxPrice, double minPrice) {
-    if (client_) {
-        current_request_type_ = "modify_warning";
-        client_->modify_price_warning(orderId.toStdString(), maxPrice, minPrice);
-    }
-}
-
-void Backend::deleteWarning(const QString &orderId) {
-    if (client_) {
-        current_request_type_ = "delete_warning";
-        client_->delete_warning(orderId.toStdString());
-    }
-}
-
-std::string Backend::extractContractCode(const QString &text) {
-    std::string key = text.trimmed().toStdString();
-    
-    // 1. 尝试直接从映射表中查找
-    auto it = contractMap_.find(key);
-    if (it != contractMap_.end()) {
-        return it->second;
-    }
-    
-    // 2. 如果没找到 (可能是用户手动输入的未知代码)，尝试解析括号
-    // 兼容旧逻辑，防止用户输入了不在列表中的格式
-    int start = text.lastIndexOf('(');
-    int end = text.lastIndexOf(')');
-    
-    if (start != -1 && end != -1 && end > start) {
-        return text.mid(start + 1, end - start - 1).trimmed().toStdString();
-    }
-    
-    // 3. 默认返回原文本
-    return key;
-}
-
-void Backend::queryWarnings(const QString &statusFilter) {
-    if (client_) {
-        current_request_type_ = "query_warnings";
-        client_->query_warnings(statusFilter.toStdString());
+void Backend::subscribe(const QString &symbol) {
+    if (quoteClient_ && !symbol.isEmpty()) {
+        quoteClient_->subscribe(QStringList() << symbol);
     }
 }
 
@@ -159,6 +203,71 @@ void Backend::setEmail(const QString &email) {
         current_request_type_ = "set_email";
         client_->set_email(email.toStdString());
     }
+    // Save locally
+    QSettings settings("FuturesCloudSentinel", "AlarmingClient");
+    settings.setValue("saved_email", email);
+}
+
+QString Backend::getSavedEmail() {
+    QSettings settings("FuturesCloudSentinel", "AlarmingClient");
+    return settings.value("saved_email", "").toString();
+}
+
+std::string Backend::extractContractCode(const QString &text) {
+    std::string key = text.trimmed().toStdString();
+    auto it = contractMap_.find(key);
+    if (it != contractMap_.end()) {
+        return it->second;
+    }
+    int start = text.lastIndexOf('(');
+    int end = text.lastIndexOf(')');
+    if (start != -1 && end != -1 && end > start) {
+        return text.mid(start + 1, end - start - 1).trimmed().toStdString();
+    }
+    return key;
+}
+
+QString Backend::getContractName(const QString &code) {
+    for (const auto& entry : RAW_CONTRACT_DATA) {
+        if (entry.code == code.toStdString()) {
+            return QString::fromStdString(entry.name);
+        }
+    }
+    return code;
+}
+
+QString Backend::constructAlertMessage(const nlohmann::json& j) {
+    std::string symbol = j.value("symbol", "");
+    double currentPrice = j.value("current_price", 0.0);
+    std::string warningType = j.value("warning_type", "price"); // price or time
+    
+    QString contractName = getContractName(QString::fromStdString(symbol));
+    
+    QString msg;
+    if (warningType == "price") {
+        double threshold = j.value("threshold", 0.0); 
+        std::string condition = j.value("condition", ""); // e.g. "max" or "min" or ">="
+        
+        msg = QString("价格预警触发！\n合约: %1 (%2)\n当前价格: %3\n触发条件: %4 %5")
+                .arg(contractName)
+                .arg(QString::fromStdString(symbol))
+                .arg(currentPrice)
+                .arg(QString::fromStdString(condition))
+                .arg(threshold);
+    } else if (warningType == "time") {
+        std::string timeStr = j.value("target_time", "");
+        msg = QString("时间预警触发！\n合约: %1 (%2)\n设定时间: %3")
+                .arg(contractName)
+                .arg(QString::fromStdString(symbol))
+                .arg(QString::fromStdString(timeStr));
+    } else {
+        // Fallback
+            msg = QString("预警触发！\n合约: %1 (%2)\n当前价格: %3")
+                .arg(contractName)
+                .arg(QString::fromStdString(symbol))
+                .arg(currentPrice);
+    }
+    return msg;
 }
 
 void Backend::onMessageReceived(const nlohmann::json& j) {
@@ -168,67 +277,19 @@ void Backend::onMessageReceived(const nlohmann::json& j) {
         bool success = j.value("success", false);
         std::string message = j.value("message", "");
         
-        // 使用本地记录的请求类型
         std::string requestType = current_request_type_;
-        current_request_type_ = ""; // 处理完后重置
+        current_request_type_ = ""; 
 
-        if (requestType == "login") {
-            if (success) {
-                emit loginSuccess();
-            } else {
-                emit loginFailed(QString::fromStdString(message));
-            }
-        } else if (requestType == "register") {
-            if (success) {
-                emit registerSuccess();
-            } else {
-                emit registerFailed(QString::fromStdString(message));
-            }
-        } else if (requestType == "query_warnings") {
-            if (success) {
-                if (j.contains("data") && j["data"].is_array()) {
-                    warningList_.clear();
-                    for (const auto& item : j["data"]) {
-                        QVariantMap map;
-                        map.insert("order_id", QString::fromStdString(item.value("order_id", "")));
-                        map.insert("symbol", QString::fromStdString(item.value("symbol", "")));
-                        map.insert("type", QString::fromStdString(item.value("type", "")));
-                        // map.insert("status", QString::fromStdString(item.value("status", "active"))); 
-                        if (item.contains("max_price")) map.insert("max_price", item["max_price"].get<double>());
-                        if (item.contains("min_price")) map.insert("min_price", item["min_price"].get<double>());
-                        warningList_.append(QVariant(map));
-                    }
-                    emit warningListChanged();
-                }
-            } else {
-                emit showMessage("Query failed: " + QString::fromStdString(message));
-            }
+        if (requestType == "login" || requestType == "register") {
+            authManager_->handleResponse(requestType, success, message, j);
+        } else if (requestType == "query_warnings" || requestType == "add_warning" || 
+                   requestType == "modify_warning" || requestType == "delete_warning") {
+            warningManager_->handleResponse(requestType, success, message, j);
         } else if (requestType == "set_email") {
             if (success) {
                 emit showMessage("Email set successfully");
             } else {
                 emit showMessage("Failed to set email: " + QString::fromStdString(message));
-            }
-        } else if (requestType == "modify_warning") {
-            if (success) {
-                emit showMessage("Warning modified successfully");
-                queryWarnings(); // Refresh list
-            } else {
-                emit showMessage("Failed to modify warning: " + QString::fromStdString(message));
-            }
-        } else if (requestType == "delete_warning") {
-            if (success) {
-                emit showMessage("Warning deleted successfully");
-                queryWarnings(); // Refresh list
-            } else {
-                emit showMessage("Failed to delete warning: " + QString::fromStdString(message));
-            }
-        } else if (requestType == "add_warning") {
-            if (success) {
-                emit showMessage("Warning added successfully");
-                queryWarnings(); // Refresh list
-            } else {
-                emit showMessage("Failed to add warning: " + QString::fromStdString(message));
             }
         } else {
             if (!success || !message.empty()) {
@@ -236,26 +297,34 @@ void Backend::onMessageReceived(const nlohmann::json& j) {
             }
         }
     } else if (type == "alert_triggered") {
-        // 处理服务器推送的预警消息
-        std::string msg = j.value("message", "Alert Triggered!");
-        // 通过信号通知 UI 层显示弹窗
-        emit showMessage(QString::fromStdString(msg));
+        // Use new message construction logic
+        QString qMsg = constructAlertMessage(j);
+        
+        std::string symbol = j.value("symbol", "Unknown");
+        double price = j.value("current_price", 0.0);
+        
+        QString logDetail = QString("[%1] %2 (Price: %3)").arg("ALERT", qMsg).arg(price);
+
+        emit showMessage(qMsg);
+        emit logReceived(QTime::currentTime().toString("HH:mm:ss"), "ALERT", logDetail);
     } else if (type == "login_response") {
-        // 兼容旧代码逻辑 (如果服务器改回去了)
+        // Legacy support
         bool success = j.value("success", false);
-        if (success) {
-            emit loginSuccess();
-        } else {
-            std::string msg = j.value("message", "Login failed");
-            emit loginFailed(QString::fromStdString(msg));
-        }
+        std::string message = j.value("message", "");
+        authManager_->handleResponse("login", success, message, j);
     } else if (type == "register_response") {
         bool success = j.value("success", false);
-        if (success) {
-            emit registerSuccess();
-        } else {
-            std::string msg = j.value("message", "Registration failed");
-            emit registerFailed(QString::fromStdString(msg));
-        }
+        std::string message = j.value("message", "");
+        authManager_->handleResponse("register", success, message, j);
     }
+}
+
+void Backend::testTriggerAlert(const QString &symbol) {
+#ifdef GLOBAL_DEBUG_MODE
+    if (client_) {
+        std::string code = symbol.isEmpty() ? "IF2310" : symbol.toStdString();
+        QString detailMsg = QString("Alert Triggered: %1 Price >= 9999.0").arg(QString::fromStdString(code));
+        client_->simulate_alert_trigger(code, 9999.0, detailMsg.toStdString());
+    }
+#endif
 }
