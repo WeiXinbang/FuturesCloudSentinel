@@ -218,9 +218,9 @@ private:
                     trigger_tm.tm_year -= 1900;  // tm_year 从1900年开始计数
                     trigger_tm.tm_mon -= 1;      // tm_mon 从0开始计数
 
-                    // 计算预警时间的前一天
+                    // 计算预警时间
                     time_t trigger_time_t = mktime(&trigger_tm);
-                    time_t one_day_before = trigger_time_t - 24 * 60 * 60;  // 减去一天的秒数
+                    time_t one_day_before = trigger_time_t ;  // 不减去一天的秒数
 
                     // 获取当前时间
                     time_t current_time_t = time(0);

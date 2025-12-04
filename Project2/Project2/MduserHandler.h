@@ -1,8 +1,4 @@
 ﻿#pragma once
-#ifndef MDUESR_HANDLER_H
-
-
-
 #include "tradeapi/ThostFtdcMdApi.h"
 #include "EmailNotifier.h"
 #include <Windows.h>
@@ -17,6 +13,7 @@
 #include <atomic>
 #include <thread>
 #include <functional>
+#include <algorithm>
 
 
 #include <mysql/jdbc.h>
@@ -62,8 +59,8 @@ public:
 static sql::Connection* GetConn()
 {
     sql::Driver* driver = get_driver_instance();
-    sql::Connection* conn = driver->connect("tcp://127.0.0.1:3306", "root", "123456");
-    conn->setSchema("cpptestmysql");
+    sql::Connection* conn = driver->connect("tcp://127.0.0.1:3306", "root", "1234");
+    conn->setSchema("futurescloudsentinel");
     return conn;
 }
 
@@ -92,6 +89,8 @@ private:
 
     std::shared_ptr<INotifier> m_notifier;
 
+    // 最新行情缓存
+    unordered_map<string, double> m_lastPrices;
     mutex m_priceMutex;
 
     // 从数据库加载的预警缓存
@@ -102,18 +101,12 @@ private:
     atomic<bool> m_runAlertReload{ false };
     thread m_reloadThread;
 
-    static CMduserHandler& handler;
+    // 连接/登录 状态与请求 id
+    atomic<bool> m_isConnected{ false };
+    atomic<bool> m_isLoggedIn{ false };
+    int m_reqId{ 0 };
 
 public:
-
-    // 最新行情缓存
-    unordered_map<string, double> m_lastPrices;
-    
-
-    static CMduserHandler& GetHandler() {
-		static CMduserHandler handler;
-		return handler;
-    }
 
     CMduserHandler()
     {
@@ -190,6 +183,7 @@ public:
         }
         catch (sql::SQLException& e) {
             printf("[DB ERROR] ReloadAlerts: %s\n", e.what());
+            fflush(stdout);
         }
     }
 
@@ -206,6 +200,7 @@ public:
         }
         catch (...) {
             printf("[DB ERROR] 更新预警状态失败\n");
+            fflush(stdout);
         }
     }
 
@@ -227,22 +222,44 @@ public:
         printf("Market data API initialized\n");
         fflush(stdout);
 
+        // 不在这里直接调用 ReqUserLogin，改在 OnFrontConnected 中处理。
     }
 
-    void login()
+    // 仍保留 login 接口：如果外部调用，会等待登录成功（最长等待若干秒）
+    void login(int timeoutSeconds = 10)
     {
-        CThostFtdcReqUserLoginField t = { 0 };
+        int waited = 0;
+        while (!m_isLoggedIn.load() && waited < timeoutSeconds * 10)
+        {
+            Sleep(100);
+            waited++;
+        }
 
-        while (m_mdApi->ReqUserLogin(&t, 1) != 0)
-            Sleep(1000);
-
-
-        printf("Login successful\n");
-        fflush(stdout);
+        if (m_isLoggedIn.load()) {
+            printf("Login successful (confirmed)\n");
+            fflush(stdout);
+        }
+        else {
+            printf("Login not confirmed within timeout\n");
+            fflush(stdout);
+        }
     }
 
     void subscribe(const vector<string>& contracts)
     {
+        // 等待登录确认（简单等待，避免在未登录前订阅）
+        int waited = 0;
+        while (!m_isLoggedIn.load() && waited < 50) // 5 秒
+        {
+            Sleep(100);
+            waited++;
+        }
+
+        if (!m_isLoggedIn.load()) {
+            printf("Warning: subscribe called before login confirmed\n");
+            fflush(stdout);
+        }
+
         m_instruments = contracts;
         m_instrumentCStrs.clear();
 
@@ -279,6 +296,74 @@ public:
     // =====================================================
     // =============== 3. 行情回调处理 ========================
     // =====================================================
+
+    // 确认与前置机建立连接后触发（在这里发送登录请求）
+    void OnFrontConnected() override
+    {
+        m_isConnected = true;
+        printf("OnFrontConnected: connected to front\n");
+        fflush(stdout);
+
+        // 发起登录请求（请按实际需求填充 BrokerID/UserID/Password）
+        CThostFtdcReqUserLoginField req = { 0 };
+        // 示例中保持空，如果你需要登录凭证请在此处赋值：
+        // strcpy_s(req.BrokerID, "你的BrokerID");
+        // strcpy_s(req.UserID, "你的UserID");
+        // strcpy_s(req.Password, "你的Password");
+
+        m_reqId++;
+        int rt = m_mdApi->ReqUserLogin(&req, m_reqId);
+        printf("ReqUserLogin returned: %d\n", rt);
+        fflush(stdout);
+    }
+
+    void OnFrontDisconnected(int nReason) override
+    {
+        m_isConnected = false;
+        m_isLoggedIn = false;
+        printf("OnFrontDisconnected: reason=%d\n", nReason);
+        fflush(stdout);
+    }
+
+    // 登录响应
+    void OnRspUserLogin(CThostFtdcRspUserLoginField* pRspUserLogin,
+        CThostFtdcRspInfoField* pRspInfo,
+        int nRequestID, bool bIsLast) override
+    {
+        if (pRspInfo && pRspInfo->ErrorID != 0) {
+            printf("OnRspUserLogin failed: %d %s\n", pRspInfo->ErrorID,
+                pRspInfo->ErrorMsg ? pRspInfo->ErrorMsg : "");
+            fflush(stdout);
+            m_isLoggedIn = false;
+            return;
+        }
+
+        printf("OnRspUserLogin success. TradingDay=%s, LoginTime=%s\n",
+            pRspUserLogin && pRspUserLogin->TradingDay ? pRspUserLogin->TradingDay : "",
+            pRspUserLogin && pRspUserLogin->LoginTime ? pRspUserLogin->LoginTime : "");
+        fflush(stdout);
+        m_isLoggedIn = true;
+    }
+
+    // 订阅/退订的响应（只是打印确认）
+    void OnRspSubMarketData(CThostFtdcSpecificInstrumentField* pSpecificInstrument,
+        CThostFtdcRspInfoField* pRspInfo,
+        int nRequestID, bool bIsLast) override
+    {
+        if (pRspInfo && pRspInfo->ErrorID != 0) {
+            printf("OnRspSubMarketData failed: %d %s\n", pRspInfo->ErrorID,
+                pRspInfo->ErrorMsg ? pRspInfo->ErrorMsg : "");
+        }
+        else if (pSpecificInstrument) {
+            printf("OnRspSubMarketData success for %s\n", pSpecificInstrument->InstrumentID);
+        }
+        else {
+            printf("OnRspSubMarketData called (no instrument info)\n");
+        }
+        fflush(stdout);
+    }
+
+    // 行情下发回调
     void OnRtnDepthMarketData(CThostFtdcDepthMarketDataField* d) override
     {
         if (!d) return;
@@ -289,7 +374,9 @@ public:
 
         string symbol = d->InstrumentID;
         double price = d->LastPrice;
-
+        // 改为带换行并立即 flush，避免缓冲导致看不到输出
+        //printf("成功启动预警程序-缓存\n");
+        //fflush(stdout);
         // 更新行情缓存
         {
             lock_guard<mutex> lk(m_priceMutex);
@@ -301,16 +388,23 @@ public:
     }
 
     // 根据 symbol 和 price 判断预警
+
+    // 根据 symbol 和 price 判断预警
     void CheckAlert(const string& symbol, double price)
     {
         vector<AlertOrder> alerts;
 
         {
             lock_guard<mutex> lk(m_alertMutex);
-            if (m_alertMap.count(symbol) == 0)
+            auto it = m_alertMap.find(symbol);
+            if (it == m_alertMap.end())
                 return;
-            alerts = m_alertMap[symbol];
+            alerts = it->second; // 拷贝，避免长时间持锁
         }
+
+        // 记录已触发的 orderId，循环结束后在内存中删除它们
+        vector<long> triggeredIds;
+        triggeredIds.reserve(4);
 
         // 获取当前时间 - 使用安全的 localtime_s
         time_t now = time(0);
@@ -344,31 +438,46 @@ public:
                     &trigger_tm.tm_year, &trigger_tm.tm_mon, &trigger_tm.tm_mday,
                     &trigger_tm.tm_hour, &trigger_tm.tm_min, &trigger_tm.tm_sec);
 
-                // 检查解析是否成功
-                if (result == 6) {  // 成功解析了6个字段
-                    // 转换为标准 tm 格式
-                    trigger_tm.tm_year -= 1900;  // tm_year 从1900年开始计数
-                    trigger_tm.tm_mon -= 1;      // tm_mon 从0开始计数
+                if (result == 6) {
+                    trigger_tm.tm_year -= 1900;
+                    trigger_tm.tm_mon -= 1;
 
-                    // 计算预警时间的前一天
                     time_t trigger_time_t = mktime(&trigger_tm);
-                    time_t one_day_before = trigger_time_t - 24 * 60 * 60;  // 减去一天的秒数
-
-                    // 获取当前时间
                     time_t current_time_t = time(0);
 
-                    // 判断是否在前一天范围内
-                    if (current_time_t >= one_day_before && current_time_t < trigger_time_t) {
+                    if (current_time_t >= trigger_time_t) {
                         triggered = true;
-                        reason = "到达预定时间前一天 " + a.trigger_time;
+                        reason = "到达预定时间 " + a.trigger_time;
                     }
                 }
             }
 
             if (triggered)
             {
+                // 先通知并在 DB 标记
                 m_notifier->Notify(a.account, symbol, price, reason);
                 MarkAlertTriggered(a.orderId);
+
+                // 立即记录，需要在内存中移除，避免短时间重复触发
+                triggeredIds.push_back(a.orderId);
+            }
+        }
+
+        // 如果有触发项，移除内存缓存中的对应条目（线程安全）
+        if (!triggeredIds.empty())
+        {
+            lock_guard<mutex> lk(m_alertMutex);
+            auto it = m_alertMap.find(symbol);
+            if (it != m_alertMap.end())
+            {
+                auto& vec = it->second;
+                vec.erase(std::remove_if(vec.begin(), vec.end(),
+                    [&](const AlertOrder& x) {
+                        return std::find(triggeredIds.begin(), triggeredIds.end(), x.orderId) != triggeredIds.end();
+                    }), vec.end());
+
+                if (vec.empty())
+                    m_alertMap.erase(it);
             }
         }
     }
@@ -384,4 +493,6 @@ public:
     }
 };
 
-#endif // !MDUESR_HANDLER_H
+class MduserHandler
+{
+};
